@@ -1,0 +1,254 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width">
+<script type="text/javascript" src='file:///android_asset/app.js'></script>
+</head>
+<script type="text/javascript">
+
+var stuff = {
+		"IsSending":false,
+		"IsHere":true
+}
+var msg = "";
+function OnStart() {
+		app.EnableBackKey(false);
+		app.PreventScreenLock();
+		
+		if (!app.IsBluetoothEnabled()) {
+				app.SetBluetoothEnabled(true);
+		}
+		
+		bt = app.CreateBluetoothSerial();
+		bt.SetOnConnect(connection);
+		bt.SetOnReceive(received);
+		bt.SetOnDisconnect(disconnection);
+		bt.SetSplitMode("End","\n");
+		bt.Listen(true);
+		
+		if (!app.FolderExists("/sdcard/.BlueChatV2")) {
+				app.MakeFolder("/sdcard/.BlueChatV2");
+				app.WriteFile("/sdcard/.BlueChatV2/messages.txt","","ASC||");
+		}
+		document.getElementsByClassName("messages")[0].innerHTML = app.ReadFile("/sdcard/.BlueChatV2/messages.txt");
+		add_events();
+		document.getElementsByClassName("name")[0].innerHTML = "Your Name: " + app.GetBluetoothName();
+}
+function connection(ok,address) {
+		if (stuff.IsSending && ok) {
+				app.ShowPopup("Sent","Bottom");
+				bt.Write(get_data() + "\n");
+				stuff.IsSending = false;
+				msg = "";
+				document.getElementsByClassName("msg")[0].value = msg;
+		}
+		else if (stuff.IsSending && !ok) {
+				app.ShowPopup("Failed to send!");
+				stuff.IsSending = false;
+		}
+		else {
+				app.ShowPopup(address + " Connected to you","Bottom");
+		}
+}
+function received(data1) {
+		var data = JSON.parse(data1);
+		if (!stuff.IsHere) {
+				noti = app.CreateNotification();
+				noti.SetMessage("A new Message!","From: " + data.name,data.msg);
+				noti.Notify();
+		}
+		document.getElementsByClassName("messages")[0].innerHTML += "<br><div class='not_mine'><sup>" + data.name + "|" + getdate() + "</sup><br><b>" + data.msg + "</b></div>";
+}
+function disconnection() {
+}
+function get_data() {
+var name = app.GetBluetoothName();
+var data = {
+		"name":name,
+		"msg":msg
+}
+return JSON.stringify(data);
+}
+function send_msg() {
+		var add = document.getElementsByClassName("bt_address")[0].value;
+		msg = document.getElementsByClassName("msg")[0].value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+		if (msg.length >= 1) {
+				if (bt.IsConnected(add)) {
+						bt.Write(get_data() + "\n");
+						document.getElementsByClassName("messages")[0].innerHTML += "<br><div class='mine'><sup>" + getdate() + "</sup><br><b>" + msg + "</b></div>";
+				} else {
+						if (add.indexOf(":") == 2) {
+								stuff.IsSending = true;
+								bt.Connect(add);
+						} else {
+								app.ShowPopup("Invalid Bluetooth Address","Bottom");
+						}
+				}
+		} else {
+				app.ShowPopup("Cannot send blank messages","Bottom");
+		}
+}
+function add_events() {
+		document.getElementsByClassName("send")[0].addEventListener("click",function() {
+				send_msg();
+		});
+		document.getElementsByClassName("bt_con")[0].addEventListener("click",function() {
+				bt1 = app.CreateBluetoothList();
+				bt1.SetOnTouch(function(name,address) {
+						document.getElementsByClassName("bt_address")[0].value = address;
+				});
+		});
+		document.getElementsByClassName("help_btn")[0].addEventListener("click",function() {
+				document.getElementsByClassName("help")[0].style.display = "block";
+				document.getElementsByClassName("messenger")[0].style.display = "none";
+		});
+		document.getElementsByClassName("back_btn")[0].addEventListener("click",function() {
+				document.getElementsByClassName("help")[0].style.display = "none";
+				document.getElementsByClassName("messenger")[0].style.display = "block";
+		});
+		document.getElementsByClassName("back_btn1")[0].addEventListener("click",function() {
+				document.getElementsByClassName("settings")[0].style.display = "none";
+				document.getElementsByClassName("messenger")[0].style.display = "block";
+		});
+		document.getElementsByClassName("set_btn")[0].addEventListener("click",function() {
+				document.getElementsByClassName("settings")[0].style.display = "block";
+				document.getElementsByClassName("messenger")[0].style.display = "none";
+		});
+		document.getElementsByClassName("del_btn")[0].addEventListener("click",function() {
+				if (confirm("Delete all data?\nThis will delete all your messages\nThis cannot be undone")) {
+						app.DeleteFolder("/sdcard/.BlueChatV2");
+						app.Exit(true);
+				}
+		});
+}
+function OnBack() {
+		if (confirm("Exit App?")) {
+				app.Exit();
+				stuff.IsHere = false;
+				app.WriteFile("/sdcard/.BlueChatV2/messages.txt",document.getElementsByClassName("messages")[0].innerHTML,"ASC||");
+		}
+}
+function OnPause() {
+		stuff.IsHere = false;
+}
+function OnResume() {
+		stuff.IsHere = true;
+}
+function getdate() {
+		var year = new Date().getFullYear();
+		var month = new Date().getMonth() + 1;
+		var day = new Date().getDate();
+		var time = new Date().getHours() + ":" + new Date().getMinutes();
+		return time + "&nbsp;&nbsp;&nbsp;" + year + "-" + month + "-" + day;
+}
+</script>
+<style>
+body {
+		background-color: rgb(0,150,255);
+}
+.help,.settings {
+		display: none;
+}
+.msg,.bt_address {
+		border-radius: 20px;
+		border-color: blue;
+		padding: 5px;
+		font-size: 20px;
+		text-align: center;
+}
+input[type="button"] {
+		border-radius: 20px;
+		border-color: blue;
+		padding: 3px;
+		font-size: 20px;
+		background-color: rgb(0,150,255);
+		color: white;
+}
+.messages {
+		width: 100%;
+		height: 500px;
+		overflow-y: scroll;
+}
+div.not_mine {
+		text-align: left;
+		border: 2px solid grey;
+		border-radius: 20px;
+		padding: 10px;
+}
+div.not_mine > sup,div.not_mine > b {
+		color: white;
+}
+div.mine {
+		text-align: right;
+		border: 2px solid blue;
+		border-radius: 20px;
+		padding: 10px;
+}
+div.mine > sup {
+		color: white;
+}
+div.mine > b {
+		color: white;
+}
+div.help > h1, div.help > p,div.help > b,.name {
+		color: white;
+}
+</style>
+<body onload="app.Start()">
+<center>
+<div class="messenger">
+<b class="name">Error getting bluetooth name</b>
+<div class="messages">
+</div>
+<table>
+<tr>
+<td>
+<input type="text" placeholder="Type Something" class="msg">
+</td>
+<td>
+<input type="button" value="Send" class="send">
+</td>
+</tr>
+</table>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<input type="text" placeholder="Address" class="bt_address">
+<br>
+<input type="button" value="Scan for devices" class="bt_con">
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<input type="button" value="Help" class="help_btn">
+<input type="button" value="Settings" class="set_btn">
+</div>
+<div class="settings">
+<input type="button" value="Delete all data" class="del_btn">
+<br>
+<br>
+<input type="button" value="Back" class="back_btn1">
+</div>
+<div class="help">
+<h1 style="color: white;">Help</h1>
+<hr>
+<p>How do i send messages?</p>
+<b>You can send messages when you have selected your friends device in the connect dialog</b>
+<br>
+<p>I have found a bug</p>
+<b>Send i@gmail.com</b>
+<br>
+<br>
+<br>
+<br>
+<input type="button" value="Back" class="back_btn">
+</div>
+</center>
+</body>
+</html>
